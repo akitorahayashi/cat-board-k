@@ -1,0 +1,68 @@
+name: Build Unsigned Archive
+
+on:
+  workflow_call:
+    secrets:
+      TEAM_ID:
+        required: true
+      APPLE_ID:
+        required: true
+
+jobs:
+  archive:
+    runs-on: macos-14
+    env:
+      MINT_PATH: ${{ github.workspace }}/.mint
+      TEAM_ID: ${{ secrets.TEAM_ID }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
+
+      - name: Cache Mint packages
+        uses: actions/cache@v4
+        id: cache-mint-packages
+        with:
+          path: ${{ github.workspace }}/.mint
+          key: ${{ runner.os }}-mint-${{ hashFiles('**/Mintfile') }}
+          restore-keys: |
+            ${{ runner.os }}-mint-
+
+      - name: Install Mint
+        run: brew install mint
+
+      - name: Generate Xcode Project
+        run: make gen-proj
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Build Unsigned Release Version
+        run: make build-release
+          
+      - name: Verify Archive Contents
+        run: |
+          ARCHIVE_APP_PATH="fastlane/build/release/archive/CatBoardApp.xcarchive/Products/Applications/CatBoardApp.app"
+          if [ -d "$ARCHIVE_APP_PATH" ]; then
+            echo "✅ Archive content verified."
+          else
+            echo "❌ 'CatBoardApp.app' not found."
+            exit 1
+          fi
+            
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-archive
+          path: fastlane/build/release/archive/CatBoardApp.xcarchive
+          retention-days: 3
