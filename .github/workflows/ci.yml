@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      MINT_PATH: ${{ github.workspace }}/.mint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: maxim-lobanov/setup-xcode@1242409711ff5721add51979e9e11e23ebb7e5a4 # v1
+        with:
+          xcode-version: '26.4.1'
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
+        with:
+          working-directory: ios
+          bundler-cache: true
+      - name: Install Mint
+        run: brew install mint
+      - name: Set up iOS tools and project
+        run: make setup
+      - name: Format and lint Swift
+        run: make check
+      - name: Run Kotlin, Swift, and UI tests
+        run: make test
+      - name: Build unsigned release archive
+        run: make build-release
+      - name: Upload verification results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: verification-results
+          path: |
+            modules/*/build/test-results/
+            .tmp/agent-device/build/ios-simulator-debug/Logs/Test/
+            ios/fastlane/build/release/archive/CatBoardApp.xcarchive
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3

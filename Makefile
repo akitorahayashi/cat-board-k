@@ -1,148 +1,73 @@
-# --- HELP ---
-.PHONY: help
-help:
-	@echo "Usage: make [target]"
-	@echo ""
-	@echo "Available targets:"
-	@awk 'BEGIN {FS = ":.*?## "; OFS=" "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-
-# Load environment variables from .env file if it exists
+.DEFAULT_GOAL := help
+.NOTPARALLEL:
 -include .env
 
-PROJECT_FILE   := CatBoardApp.xcodeproj
-APP_BUNDLE_ID  := com.akitorahayashi.CatBoardApp
-# --- PROJECT SPECIFIC PATHS ---
-TEST_DERIVED_DATA_PATH := fastlane/build/test-results/DerivedData
-DEBUG_APP_PATH    := $(TEST_DERIVED_DATA_PATH)/Debug/Build/Products/Debug-iphonesimulator/CatBoardApp.app
-RELEASE_APP_PATH  := $(TEST_DERIVED_DATA_PATH)/Release/Build/Products/Release-iphonesimulator/CatBoardApp.app
-SWIFTPM_CACHE_PATH := ~/Library/Caches/org.swift.swiftpm
+LOCAL_SIMULATOR_UDID ?= $(shell ruby ios/scripts/simulator.rb)
+IOS_DERIVED_DATA := ../.tmp/agent-device/build/ios-simulator-debug
 
-.PHONY: setup
-setup: ## Run all setup tasks
-	bundle install
-	mint bootstrap
+.PHONY: help setup gen-proj framework build-ios test test-kotlin test-ios unit-test ui-test fix check build-debug build-release sign-debug-development sign-release-development sign-release-app-store sign-release-ad-hoc sign-release-enterprise
+
+help:
+	@echo "make setup       Install iOS tools and generate the Xcode project"
+	@echo "make framework   Build the Kotlin simulator framework"
+	@echo "make build-ios   Build the iOS simulator app"
+	@echo "make test        Run Kotlin, Swift boundary, and UI tests"
+	@echo "make fix         Format and autocorrect Swift sources"
+	@echo "make check       Apply fixes and validate Swift sources"
+	@echo "make build-release  Build an unsigned iOS release archive"
+
+setup:
+	cd ios && bundle install && mint bootstrap
 	$(MAKE) gen-proj
 
-.PHONY: gen-proj
-gen-proj: ## Generate Xcode project
-	@echo "🔧 Generating Xcode project with TEAM_ID: $(TEAM_ID)"
-	@TEAM_ID="$(TEAM_ID)" mint run xcodegen generate
+gen-proj:
+	cd ios && TEAM_ID="$(TEAM_ID)" mint run xcodegen generate
 
-.PHONY: resolve-pkg
-resolve-pkg: ## Reset SwiftPM cache, dependencies, and build
-	@echo "🧹 Removing SwiftPM build and cache..."
-	rm -rf .build
-	rm -rf $(SWIFTPM_CACHE_PATH)
-	@echo "✅ SwiftPM build and cache removed."
-	@echo "🔄 Resolving Swift package dependencies..."
-	xcodebuild -resolvePackageDependencies -project $(PROJECT_FILE)
-	@echo "✅ Package dependencies resolved."
+framework:
+	./gradlew :modules:app:linkDebugFrameworkIosSimulatorArm64
 
-.PHONY: open
-open: ## Open project in Xcode
-	@xed $(PROJECT_FILE)
+build-ios: gen-proj
+	cd ios && xcodebuild -project CatBoardApp.xcodeproj -scheme CatBoardApp -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath $(IOS_DERIVED_DATA) CODE_SIGN_IDENTITY=- build
 
-# --- LOCAL SIMULATOR ---
-.PHONY: boot
-boot: ## Boot local simulator
-ifndef LOCAL_SIMULATOR_UDID
-	$(error LOCAL_SIMULATOR_UDID is not set. Please set it in your .env)
-endif
-	@echo "🚀 Booting local simulator: UDID: $(LOCAL_SIMULATOR_UDID)"
-	@if xcrun simctl list devices | grep -q "$(LOCAL_SIMULATOR_UDID) (Booted)"; then \
-		echo "⚡️ Simulator is already booted."; \
-	else \
-		xcrun simctl boot $(LOCAL_SIMULATOR_UDID); \
-		echo "✅ Simulator booted."; \
-	fi
-	open -a Simulator
+test: test-kotlin test-ios
 
-.PHONY: run-debug
-run-debug: ## Build debug, install and launch on local simulator
-	$(MAKE) boot
-	@bundle exec fastlane build_for_testing
-	xcrun simctl install $(LOCAL_SIMULATOR_UDID) $(DEBUG_APP_PATH)
-	xcrun simctl launch $(LOCAL_SIMULATOR_UDID) $(APP_BUNDLE_ID)
+test-kotlin:
+	./gradlew allTests
 
-.PHONY: run-release
-run-release: ## Build release, install and launch on local simulator
-	$(MAKE) boot
-	@bundle exec fastlane build_for_testing configuration:Release
-	xcrun simctl install $(LOCAL_SIMULATOR_UDID) $(RELEASE_APP_PATH)
-	xcrun simctl launch $(LOCAL_SIMULATOR_UDID) $(APP_BUNDLE_ID)
+test-ios: gen-proj
+	cd ios && xcodebuild -project CatBoardApp.xcodeproj -scheme CatBoardApp -configuration Debug -sdk iphonesimulator -destination 'platform=iOS Simulator,id=$(LOCAL_SIMULATOR_UDID)' -derivedDataPath $(IOS_DERIVED_DATA) -parallel-testing-enabled NO $(IOS_TEST_FILTER) CODE_SIGN_IDENTITY=- test
 
-# --- BUILD & SIGN ---
-.PHONY: build-debug
-build-debug: ## Build Debug archive (unsigned)
-	bundle exec fastlane build_debug
+unit-test: IOS_TEST_FILTER = -only-testing:CatBoardTests
+unit-test: test-ios
 
-.PHONY: build-release
-build-release: ## Build Release archive (unsigned)
-	bundle exec fastlane build_release
+ui-test: IOS_TEST_FILTER = -only-testing:CatBoardUITests
+ui-test: test-ios
 
-.PHONY: sign-debug-development
-sign-debug-development: ## Sign debug archive for development
-	bundle exec fastlane sign_debug_development
+fix:
+	cd ios && mint run swiftformat CatBoardApp CatBoardTests CatBoardUITests
+	cd ios && mint run swiftlint --fix
 
-.PHONY: sign-release-development
-sign-release-development: ## Sign release archive for development
-	bundle exec fastlane sign_release export_method:development
+check: fix
+	cd ios && mint run swiftformat CatBoardApp CatBoardTests CatBoardUITests --lint
+	cd ios && mint run swiftlint --strict
 
-.PHONY: sign-release-app-store
-sign-release-app-store: ## Sign release archive for app_store
-	bundle exec fastlane sign_release export_method:app_store
+build-debug: gen-proj
+	cd ios && bundle exec fastlane build_debug
 
-.PHONY: sign-release-ad-hoc
-sign-release-ad-hoc: ## Sign release archive for ad_hoc
-	bundle exec fastlane sign_release export_method:ad_hoc
+build-release: gen-proj
+	cd ios && bundle exec fastlane build_release
 
-.PHONY: sign-release-enterprise
-sign-release-enterprise: ## Sign release archive for enterprise
-	bundle exec fastlane sign_release export_method:enterprise
+sign-debug-development:
+	cd ios && bundle exec fastlane sign_debug_development
 
-# --- TESTING ---
-.PHONY: build-for-testing
-build-for-testing: ## Build for testing
-	bundle exec fastlane build_for_testing
+sign-release-development:
+	cd ios && bundle exec fastlane sign_release export_method:debugging
 
-.PHONY: unit-test
-unit-test: ## Run unit tests
-	bundle exec fastlane unit_test
+sign-release-app-store:
+	cd ios && bundle exec fastlane sign_release export_method:app-store-connect
 
-.PHONY: unit-test-without-building
-unit-test-without-building: ## Run unit tests without building
-	bundle exec fastlane unit_test_without_building
+sign-release-ad-hoc:
+	cd ios && bundle exec fastlane sign_release export_method:release-testing
 
-.PHONY: ui-test
-ui-test: ## Run UI tests
-	bundle exec fastlane ui_test
-
-.PHONY: ui-test-without-building
-ui-test-without-building: ## Run UI tests without building
-	bundle exec fastlane ui_test_without_building
-
-.PHONY: test-%
-test-%: ## Run a specific Swift package test (e.g., make test-CatImageScreener)
-	@echo "🧪 Testing package $*..."
-	@bundle exec fastlane test_package package:$*
-
-.PHONY: test-all
-test-all: ## Run all tests (unit, UI, all packages)
-	bundle exec fastlane test_all
-	$(MAKE) test-CatImageURLRepository
-	$(MAKE) test-CatImageScreener
-	$(MAKE) test-CatImagePrefetcher
-
-
-# --- BUILD & SIGN ---
-.PHONY: format
-format: ## Format code
-	mint run swiftformat .
-
-.PHONY: format-check
-format-check: ## Check code format
-	mint run swiftformat --lint .
-
-.PHONY: lint
-lint:
-	mint run swiftlint --strict
+sign-release-enterprise:
+	cd ios && bundle exec fastlane sign_release export_method:enterprise
