@@ -87,7 +87,7 @@ final class ScreeningTests: XCTestCase {
         settings: ScreeningSettings,
         classifier: any Classifier
     ) async -> (urls: [String]?, error: Error?) {
-        let bridge = ScreeningBridge(classifier: classifier)
+        let bridge = Bridge(classifier: classifier)
         return await withCheckedContinuation { continuation in
             bridge.screenImages(images: images, settings: settings) { urls, error in
                 continuation.resume(returning: (urls, error))

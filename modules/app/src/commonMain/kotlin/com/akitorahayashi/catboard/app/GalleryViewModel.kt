@@ -96,12 +96,6 @@ class GalleryViewModel(
         }.also { loading = it }
     }
 
-    fun clearDisplayedImages() {
-        loading?.cancel()
-        current.value = GalleryState(isInitializing = false)
-        loader.clearMemoryCache()
-    }
-
     private suspend fun loadBatches(total: Int, batches: Int) {
         repeat(batches) { batch ->
             val count = total / batches + if (batch < total % batches) 1 else 0

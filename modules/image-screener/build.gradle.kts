@@ -1,5 +1,5 @@
 plugins {
-    id("catboard.ios")
+    id("catboard.platforms")
 }
 
 kotlin {

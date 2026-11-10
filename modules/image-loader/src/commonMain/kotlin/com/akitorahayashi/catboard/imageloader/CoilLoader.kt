@@ -12,10 +12,12 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import okio.Path.Companion.toPath
 
 @kotlin.native.HiddenFromObjC
@@ -33,7 +35,7 @@ class CoilLoader internal constructor(
                     val request = ImageRequest.Builder(context).data(url).build()
                     when (val result = images.execute(request)) {
                         is ErrorResult -> throw result.throwable
-                        is SuccessResult -> ImageData(url, encode(result.image))
+                        is SuccessResult -> ImageData(url, withContext(Dispatchers.Default) { encode(result.image) })
                     }
                 }
             }

@@ -1,9 +1,7 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
-    id("catboard.ios")
-    alias(libs.plugins.compose.multiplatform)
-    alias(libs.plugins.compose.compiler)
+    id("catboard.platforms")
 }
 
 kotlin {
@@ -17,19 +15,17 @@ kotlin {
         }
     }
     sourceSets {
+        androidMain.dependencies {
+            implementation(libs.coroutines.android)
+        }
         commonMain.dependencies {
             api(project(":modules:image-screener"))
             api(project(":modules:image-loader"))
             implementation(project(":modules:cat-api"))
-            implementation(project(":modules:image-store"))
-            implementation(project(":modules:image-prefetcher"))
-            implementation(libs.coil.compose)
-            implementation(libs.lifecycle.viewmodel.compose)
-            implementation(libs.coroutines.core)
-            implementation(libs.compose.runtime)
-            implementation(libs.compose.foundation)
-            implementation(libs.compose.material)
-            implementation(libs.compose.ui)
+            api(project(":modules:image-store"))
+            api(project(":modules:image-prefetcher"))
+            api(libs.lifecycle.viewmodel)
+            api(libs.coroutines.core)
         }
         commonTest.dependencies {
             implementation(libs.coroutines.test)

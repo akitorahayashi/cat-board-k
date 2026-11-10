@@ -1,27 +1,12 @@
-import CatBoard
 import SwiftUI
 
 @main
 struct CatBoardApp: App {
+    @StateObject private var dependencies = Dependencies()
+
     var body: some Scene {
         WindowGroup {
-            GalleryHost().ignoresSafeArea()
+            GalleryScene(dependencies: dependencies)
         }
     }
-}
-
-private struct GalleryHost: UIViewControllerRepresentable {
-    func makeUIViewController(context _: Context) -> UIViewController {
-        #if targetEnvironment(simulator)
-            let screeningEnabled = false
-        #else
-            let screeningEnabled = true
-        #endif
-        return EntryPointKt.galleryViewController(
-            screener: ScreeningBridge(classifier: CoreMLClassifier()),
-            defaultScreeningEnabled: screeningEnabled
-        )
-    }
-
-    func updateUIViewController(_: UIViewController, context _: Context) {}
 }

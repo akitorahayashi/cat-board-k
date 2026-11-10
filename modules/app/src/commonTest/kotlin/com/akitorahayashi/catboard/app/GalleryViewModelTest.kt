@@ -46,15 +46,6 @@ class GalleryViewModelTest {
     }
 
     @Test
-    fun clearRemovesDisplayedImagesAndErrors() = runTest {
-        val scenario = scenario()
-        requireNotNull(scenario.model.loadInitialImages()).join()
-        scenario.model.clearDisplayedImages()
-        assertTrue(scenario.model.state.value.images.isEmpty())
-        assertNull(scenario.model.state.value.errorMessage)
-    }
-
-    @Test
     fun reachingTheDisplayLimitStartsANewGallery() = runTest {
         val model = scenario().model
         requireNotNull(model.loadInitialImages()).join()

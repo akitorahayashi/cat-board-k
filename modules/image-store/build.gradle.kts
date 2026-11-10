@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
-    id("catboard.ios")
+    id("catboard.platforms")
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
 }
@@ -18,6 +18,7 @@ kotlin {
             implementation(libs.coroutines.test)
         }
     }
+    dependencies.add("kspAndroid", libs.room.compiler)
     targets.withType<KotlinNativeTarget>().configureEach {
         project.dependencies.add("ksp${name.replaceFirstChar { it.uppercaseChar() }}", libs.room.compiler)
     }

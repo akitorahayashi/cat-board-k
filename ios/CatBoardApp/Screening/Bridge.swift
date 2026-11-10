@@ -1,7 +1,7 @@
 import CatBoard
 import Foundation
 
-final class ScreeningBridge: NSObject, Screener {
+final class Bridge: NSObject, Screener {
     private let classifier: any Classifier
 
     init(classifier: any Classifier) {
@@ -27,7 +27,7 @@ final class ScreeningBridge: NSObject, Screener {
                 let selected = try indexes.map { index in
                     guard urls.indices.contains(index) else {
                         throw NSError(
-                            domain: "ScreeningBridge",
+                            domain: "Bridge",
                             code: 1,
                             userInfo: [NSLocalizedDescriptionKey: "Core ML returned an invalid image index"]
                         )

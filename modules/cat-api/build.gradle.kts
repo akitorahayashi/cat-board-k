@@ -1,5 +1,5 @@
 plugins {
-    id("catboard.ios")
+    id("catboard.platforms")
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -10,6 +10,9 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.json)
             implementation(libs.serialization.json)
+        }
+        androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

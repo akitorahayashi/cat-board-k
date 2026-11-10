@@ -1,5 +1,5 @@
 plugins {
-    id("catboard.ios")
+    id("catboard.platforms")
 }
 
 kotlin {
@@ -9,6 +9,9 @@ kotlin {
             implementation(libs.coil.network.ktor)
             implementation(libs.ktor.client.core)
             implementation(libs.coroutines.core)
+        }
+        androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

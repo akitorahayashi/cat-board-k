@@ -25,6 +25,9 @@ settings:
       SWIFT_OPTIMIZATION_LEVEL: "-O" 
 
 packages:
+  TieredGridLayout:
+    url: https://github.com/akitorahayashi/tiered-grid-layout
+    exactVersion: "1.2.0"
   ScaryCatScreeningKit:
     url: https://github.com/akitorahayashi/scary-cat-screening-kit
     exactVersion: "3.3.6"
@@ -45,6 +48,8 @@ targets:
           cd "$SRCROOT/.."
           ./gradlew :modules:app:embedAndSignAppleFrameworkForXcode
     dependencies:
+      - package: TieredGridLayout
+        product: TieredGridLayout
       - package: ScaryCatScreeningKit
         product: ScaryCatScreeningKit
     settings:
@@ -66,7 +71,6 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleDisplayName: CatBoard
-        CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

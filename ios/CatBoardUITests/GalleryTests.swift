@@ -22,6 +22,11 @@ final class GalleryTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["gallery"].waitForExistence(timeout: timeout))
         XCTAssertTrue(app.images["galleryImage_0"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.navigationBars["Cat Board"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Gallery"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testRefresh() {
@@ -65,12 +70,21 @@ final class GalleryTests: XCTestCase {
         let screening = app.switches["screeningToggle"]
         let scaryMode = app.switches["scaryModeToggle"]
         XCTAssertTrue(screening.waitForExistence(timeout: timeout))
-        XCTAssertFalse(scaryMode.isEnabled)
+        XCTAssertTrue(app.navigationBars["Settings"].exists)
+        XCTAssertEqual(screening.value as? String, "0")
         screening.tap()
-        expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: scaryMode)
+        expectation(for: NSPredicate(format: "value == '1'"), evaluatedWith: screening)
         waitForExpectations(timeout: timeout)
         scaryMode.tap()
-        app.buttons["doneButton"].tap()
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Settings"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        let header = app.navigationBars["Settings"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+        let bottom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+        header.press(forDuration: 0.1, thenDragTo: bottom)
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: screening)
+        waitForExpectations(timeout: timeout)
         XCTAssertTrue(app.images["galleryImage_0"].waitForExistence(timeout: timeout))
     }
 }
