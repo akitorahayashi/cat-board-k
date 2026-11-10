@@ -1,131 +1,58 @@
-## Overview
+# Cat Board
 
-Cat Board is an iOS app designed to efficiently process and display a large number of cat images.
-
-Since the screening process involves machine learning, verification on a real device such as an iPhone 16 is recommended. Simulators may not provide sufficient performance.
+Cat Board is an iOS cat image gallery with a SwiftUI interface and Kotlin Multiplatform application logic. Its MVVM structure separates platform views from the shared ViewModel and data modules. The shared libraries also target Android; an Android application and classifier are supplied by a consuming app.
 
 ## Architecture
 
-- **Multi-Module Configuration**
-  - Xcode project management with Xcodegen
-  - Module management with SwiftPM
+| Module | Boundary |
+|---|---|
+| [cat-api](modules/cat-api) | Paged requests to The Cat API, response validation, and requested-count limits |
+| [image-store](modules/image-store) | Durable FIFO URL consumption and background replenishment with Room |
+| [image-loader](modules/image-loader) | Coil loading, bounded image caches, and encoded image data |
+| [image-screener](modules/image-screener) | The screening interface and immutable settings |
+| [image-prefetcher](modules/image-prefetcher) | Durable queues of accepted images, partitioned by screening settings |
+| [app](modules/app) | Shared ViewModel state and operations, platform dependency factories, and the exported iOS framework |
 
-- **Swift Concurrency**
-  - Asynchronous processing control with `async/await`
-  - Concurrency safety with `actor`
+The [platform convention plugin](build-logic/src/main/kotlin/catboard.platforms.gradle.kts) owns the iOS and Android library targets. Application logic lives in `commonMain`; networking engines, database construction, preferences, and image encoding live in `iosMain` and `androidMain`. The iOS application consumes one static framework, and Android applications depend on `:modules:app`.
 
-- **SwiftData**
-  - Caching URLs fetched from the Cat API
-  - Caching prefetched URLs
-  - Automatic replenishment and deletion features
+The [Swift application](ios/CatBoardApp) groups screens under `View`, state bindings under `ViewModel`, dependency construction and scene ownership under `Composition`, and Core ML integration under `Screening`. `GalleryBinding` observes the shared `GallerySession` and forwards actions without duplicating loading logic. The application owns a `GalleryRuntime` with the shared caches and repositories. Each scene owns a separate session and ViewModel; releasing its binding cancels only that session. Closing the application runtime cancels all remaining work before shared resources close. The session also supplies image data from the shared cache.
 
-- **Performance Optimization**
-  - Fast image loading through prefetching and caching
-  - High-speed image display with batch processing
-  - Chunked layout + LazyVStack
+The SwiftUI gallery owns its tiered layout, native navigation bar, icon animations, and settings sheet. Android consumers render their own views from the same `GalleryViewModel` state. A platform classifier implements the shared `Screener` contract and is required by the Android factory.
 
-- **Dependency Injection**
-  - Dependency Inversion Principle
-  - Elimination of external dependencies like networking
+The gallery loads progressively, fetches more images at the older end of the list, and starts a new gallery at the display limit. Its tiered layout uses lazy groups of square images. Settings changes cancel pending work and discard prefetched images from the previous policy.
 
-## Directory Structure
+Screening is disabled by default in the simulator and enabled by default on devices. Normal mode accepts safe images; scary mode accepts unsafe images. Classification failures are returned as errors and do not accept images. The implementation is [CoreMLClassifier.swift](ios/CatBoardApp/Screening/CoreMLClassifier.swift), using the package declared in [project.yml](ios/project.yml).
 
-```
-.
-├── .github/
-├── CatBoardApp/
-├── Packages/
-│   ├── CatAPIClient/
-│   ├── CatImageLoader/
-│   ├── CatImagePrefetcher/
-│   ├── CatImageScreener/
-│   └── CatImageURLRepository/
-├── CatBoardTests/
-├── CatBoardUITests/
-├── fastlane/
-├── project.yml
-├── Makefile
-├── Mintfile
-├── .swiftlint.yml
-├── .swiftformat
-├── README.md
-└── .gitignore
+## Toolchain and build
+
+The prerequisites are an Apple Silicon Mac, Xcode, JDK 17 or newer, Homebrew with Mint, and the Ruby selected by [ios/.ruby-version](ios/.ruby-version). Kotlin dependencies and plugins are defined in [the Gradle version catalog](gradle/libs.versions.toml); Swift tools are pinned to reviewed commits in [ios/Mintfile](ios/Mintfile).
+
+The [Kotlin compatibility guide](https://kotlinlang.org/docs/multiplatform/multiplatform-compatibility-guide.html) describes supported toolchain combinations. [CI](.github/workflows/ci.yml) selects an available Apple Silicon runner and a compatible Xcode version.
+
+Setup, framework compilation, and simulator application compilation are available from the repository root:
+
+```sh
+make setup
+make framework
+make build-ios
 ```
 
-## Key Features
+`make setup` installs Ruby dependencies and Swift tools, then generates `ios/CatBoardApp.xcodeproj`. Xcode builds invoke Gradle to build and embed the Kotlin framework. The generated project is available for development in Xcode.
 
-### 1. Layout
-Utilizes `LazyVStack` and `TieredGridLayout` to provide a smooth scrolling experience while optimizing memory usage.
+The shared Android library builds with `make build-android`. Android builds require an SDK configured through `ANDROID_HOME` or `local.properties`; SDK levels are defined in the version catalog.
 
-### 2. Swift Concurrency
-By implementing concurrent processing using `actor` and `MainActor`, "Bad Access" errors have been completely eliminated. Each component (CatImagePrefetcher, CatImageURLRepository, CatImageLoader, CatImageScreener) is implemented as an `actor`, preventing data races and enabling efficient parallel processing. UI updates and SwiftData operations are explicitly controlled on the `MainActor` to achieve predictable state management.
+The unsigned archive target is `make build-release`. Its output is `ios/fastlane/build/release/archive/CatBoardApp.xcarchive`. Signing lanes use `APPLE_ID` and `TEAM_ID` from the environment.
 
-### 3. Multi-Layer Caching System
-Implements a caching system using Kingfisher and SwiftData. It combines a memory cache (limited to 200MB), a disk cache (limited to 500MB, valid for 3 days), and persistence of fetched and prefetched URLs with SwiftData to achieve faster display. When displaying images, `.memoryCacheExpiration(.seconds(3600))` and `.diskCacheExpiration(.expired)` are used to release the cache for a short period after display.
+## Verification
 
-### 4. Automatic Image URL Management
-`CatImageURLRepository` monitors the stock of image URLs. When the number of available URLs falls below a certain threshold, it automatically fetches new image URLs via `CatAPIClient`. This replenishment process runs asynchronously in the background for efficient updates. The fetched URLs are persisted through SwiftData, ensuring they are immediately available on the next app launch.
-
-### 5. Prefetching
-A prefetching feature prepares the next images to be displayed in advance. Prefetched URLs are saved in SwiftData and can be used on the next launch. This speeds up the initial image display when the app is launched on subsequent occasions.
-
-### 6. Screening
-A machine learning model checks all cat images before display, automatically filtering out inappropriate ones to ensure only safe images are shown. A flag is also available in the code for developers to display only images identified as potentially unsafe.
-
-### 7. Error Handling and Recovery
-Each module implements its own error handling to manage exceptions such as network errors, decoding errors, and memory access issues. Stable operation is achieved through settings like a maximum of 5 retries and a 10-second timeout.
-
-## Setup
-
-### 1. Environment Configuration
-
-Copy `.env.example` to `.env` and configure your local environment:
-
-```bash
-cp .env.example .env
+```sh
+make test
 ```
 
-Edit `.env` with your local simulator settings:
+This runs Kotlin simulator tests, Swift screening-boundary tests, and XCTest UI tests. The simulator selector reads the installed inventory and chooses an iPhone matching the active Xcode SDK. `LOCAL_SIMULATOR_UDID` selects a specific simulator when provided.
 
-```bash
-# Local Simulator
-LOCAL_SIMULATOR_UDID="YOUR_UDID"     
+The narrower iOS targets are `make test-kotlin`, `make unit-test`, and `make ui-test`. Shared Kotlin tests also run on the Android host with `make test-android`. `make fix` formats and autocorrects Swift; `make check` applies those fixes before format and lint validation.
 
-# Apple Developer
-APPLE_ID="your_apple_id@example.com"
-TEAM_ID="YOUR_TEAM_ID"
-```
+The UI tests use explicit launch arguments for deterministic local image data and simulated errors. Their contracts cover initial display, refresh, retry, loading beyond the initial batch, and settings changes. SwiftUI views expose native accessibility identifiers. The UI tests retain gallery and settings screenshots for visual inspection.
 
-To find your simulator's UDID, run:
-```bash
-xcrun simctl list devices
-# or use xcsiml for a cleaner output:
-# xcsiml list
-```
-
-### 2. Dependencies & Project Generation
-
-Install dependencies:
-```bash
-bundle install  # Ruby dependencies (fastlane)
-mint bootstrap  # Swift dependencies (swiftformat, swiftlint)
-```
-
-Generate Xcode project (with env values):
-```bash
-make gen-proj   # Runs xcodegen with TEAM_ID from .env
-```
-
-## Unit Tests
-
-- **GalleryViewModelTests**: Verifies ViewModel's image loading, additional fetching, clearing, maximum count limit, and integration with screening.
-- **CatImagePrefetcherTests**: Verifies automatic execution of prefetching, prevention of duplicate execution, and integration with screening.
-- **CatImageURLRepositoryTests**: Verifies image URL fetching, caching, and automatic replenishment functions.
-- **CatImageScreenerTests**: Verifies the screening functionality.
-
-## UI Tests
-
-- Initial screen display on app launch, scroll view, and confirmation of the first image's presence.
-- Refresh button behavior, image redisplay, and confirmation that no error state occurs.
-- Display of error state, retry button behavior, and confirmation of recovery to a normal state.
-- Confirmation of additional image fetching through scrolling.
+Automated validation uses simulators. Physical-device screening and scroll-performance measurements are outside this migration's verification scope.

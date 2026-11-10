@@ -1,0 +1,53 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build an unsigned Debug archive"
+  lane :build_debug do
+    archive(configuration: "Debug")
+  end
+
+  desc "Build an unsigned Release archive"
+  lane :build_release do
+    archive(configuration: "Release")
+  end
+
+  desc "Export the Debug archive for development"
+  lane :sign_debug_development do
+    export_archive(configuration: "Debug", export_method: "debugging")
+  end
+
+  desc "Export the Release archive with the requested Xcode export method"
+  lane :sign_release do |options|
+    export_archive(configuration: "Release", export_method: options.fetch(:export_method))
+  end
+
+  private_lane :archive do |options|
+    configuration = options.fetch(:configuration)
+    base = File.expand_path("build/#{configuration.downcase}", __dir__)
+    build_app(
+      project: File.expand_path("../CatBoardApp.xcodeproj", __dir__),
+      scheme: "CatBoardApp",
+      configuration: configuration,
+      archive_path: "#{base}/archive/CatBoardApp.xcarchive",
+      derived_data_path: "#{base}/DerivedData",
+      skip_codesigning: true,
+      skip_package_ipa: true,
+      clean: false
+    )
+  end
+
+  private_lane :export_archive do |options|
+    configuration = options.fetch(:configuration)
+    method = options.fetch(:export_method)
+    base = File.expand_path("build/#{configuration.downcase}", __dir__)
+    build_app(
+      project: File.expand_path("../CatBoardApp.xcodeproj", __dir__),
+      scheme: "CatBoardApp",
+      archive_path: "#{base}/archive/CatBoardApp.xcarchive",
+      export_method: method,
+      output_directory: "#{base}/#{method}",
+      export_team_id: ENV.fetch("TEAM_ID"),
+      skip_build_archive: true
+    )
+  end
+end

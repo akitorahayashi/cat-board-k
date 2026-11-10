@@ -36,7 +36,16 @@ Package.resolved
 /.cursor/
 
 # Fastlane files
-fastlane/README.md
-fastlane/report.xml
+ios/fastlane/README.md
+ios/fastlane/report.xml
 
 # Generated files
+
+# Kotlin and local verification artifacts
+.gradle/
+.kotlin/
+.tmp/
+local.properties
+
+.mint/
+.bundle/
