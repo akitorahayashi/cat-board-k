@@ -8,16 +8,17 @@ def capture(*command)
 end
 
 sdk = capture("xcrun", "--sdk", "iphonesimulator", "--show-sdk-version").strip
-runtimes = JSON.parse(capture("xcrun", "simctl", "list", "runtimes", "--json"))
+runtime = JSON.parse(capture("xcrun", "simctl", "list", "runtimes", "--json"))
   .fetch("runtimes")
-  .select { |runtime| runtime.fetch("isAvailable") && runtime.fetch("version") == sdk }
-  .map { |runtime| runtime.fetch("identifier") }
+  .select { |candidate| candidate.fetch("isAvailable") && candidate.fetch("version").split(".").first(2) == sdk.split(".").first(2) }
+  .max_by { |candidate| candidate.fetch("version").split(".").map(&:to_i) }
+abort("No available iOS simulator runtime matches the selected iOS SDK #{sdk}") unless runtime
 devices = JSON.parse(capture("xcrun", "simctl", "list", "devices", "available", "--json"))
   .fetch("devices")
-  .select { |runtime, _| runtimes.include?(runtime) }
+  .select { |identifier, _| identifier == runtime.fetch("identifier") }
   .values.flatten
   .select { |device| device.fetch("isAvailable") && device.fetch("name").start_with?("iPhone ") }
 device = devices.sort_by { |candidate| [candidate.fetch("name"), candidate.fetch("udid")] }.first
 abort("No available iPhone simulator matches the selected iOS SDK #{sdk}") unless device
-warn("Selected #{device.fetch('name')} with iOS #{sdk}")
+warn("Selected #{device.fetch('name')} with iOS #{runtime.fetch('version')} (SDK #{sdk})")
 puts device.fetch("udid")

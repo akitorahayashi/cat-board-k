@@ -1,0 +1,35 @@
+name: Unsigned release
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    name: iOS Release archive
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-ios
+      - uses: ./.github/actions/setup-gradle
+      - name: Set up Ruby and Bundler
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
+        with:
+          working-directory: ios
+          bundler-cache: true
+      - name: Build unsigned release archive
+        run: make build-release
+      - name: Verify and package archive
+        run: |
+          test -d ios/fastlane/build/release/archive/CatBoardApp.xcarchive/Products/Applications/CatBoardApp.app
+          tar -C ios/fastlane/build/release/archive -czf ios/fastlane/build/release/CatBoardApp.xcarchive.tar.gz CatBoardApp.xcarchive
+      - name: Upload unsigned archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unsigned-release
+          path: ios/fastlane/build/release/CatBoardApp.xcarchive.tar.gz
+          if-no-files-found: error
+          retention-days: 3

@@ -5,7 +5,7 @@
 LOCAL_SIMULATOR_UDID ?= $(shell ruby ios/scripts/simulator.rb)
 IOS_DERIVED_DATA := ../.tmp/agent-device/build/ios-simulator-debug
 
-.PHONY: help setup gen-proj framework build-ios build-android test test-kotlin test-android test-ios unit-test ui-test fix check build-debug build-release sign-debug-development sign-release-development sign-release-app-store sign-release-ad-hoc sign-release-enterprise
+.PHONY: help setup setup-tools gen-proj framework build-ios build-android test test-kotlin test-android test-ios unit-test ui-test fix check check-workflows build-debug build-release sign-debug-development sign-release-development sign-release-app-store sign-release-ad-hoc sign-release-enterprise
 
 help:
 	@echo "make setup       Install iOS tools and generate the Xcode project"
@@ -16,11 +16,15 @@ help:
 	@echo "make test-android  Run shared Kotlin tests on the Android host"
 	@echo "make fix         Format and autocorrect Swift sources"
 	@echo "make check       Apply fixes and validate Swift sources"
+	@echo "make check-workflows  Validate GitHub Actions workflows"
 	@echo "make build-release  Build an unsigned iOS release archive"
 
 setup:
-	cd ios && bundle install && mint bootstrap
-	$(MAKE) gen-proj
+	cd ios && bundle install
+	$(MAKE) setup-tools gen-proj
+
+setup-tools:
+	cd ios && mint bootstrap
 
 gen-proj:
 	cd ios && TEAM_ID="$(TEAM_ID)" mint run xcodegen generate
@@ -58,6 +62,9 @@ fix:
 check: fix
 	cd ios && mint run swiftformat CatBoardApp CatBoardTests CatBoardUITests --lint
 	cd ios && mint run swiftlint --strict
+
+check-workflows:
+	actionlint
 
 build-debug: gen-proj
 	cd ios && bundle exec fastlane build_debug

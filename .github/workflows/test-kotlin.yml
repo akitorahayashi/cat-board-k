@@ -1,0 +1,55 @@
+name: Shared Kotlin
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android tests and library
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-gradle
+      - name: Install Android SDK platform
+        run: |
+          compile_sdk=$(python3 -c 'import tomllib; print(tomllib.load(open("gradle/libs.versions.toml", "rb"))["versions"]["android-compile"])')
+          sdkmanager "platforms;android-${compile_sdk}"
+      - name: Run Android host tests
+        run: make test-android
+      - name: Build Android library
+        run: make build-android
+      - name: Upload Android test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kotlin-android-test-results
+          path: |
+            modules/*/build/test-results/
+            modules/*/build/reports/tests/
+          if-no-files-found: warn
+          retention-days: 3
+
+  ios:
+    name: iOS Native tests
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-ios
+      - uses: ./.github/actions/setup-gradle
+      - name: Run Kotlin simulator tests
+        run: make test-kotlin
+      - name: Upload iOS Native test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kotlin-ios-test-results
+          path: |
+            modules/*/build/test-results/
+            modules/*/build/reports/tests/
+          if-no-files-found: warn
+          retention-days: 3

@@ -1,35 +1,35 @@
 # Cat Board
 
-Cat Board is an iOS cat image gallery with a SwiftUI interface and Kotlin Multiplatform application logic. Its MVVM structure separates platform views from the shared ViewModel and data modules. The shared libraries also target Android; an Android application and classifier are supplied by a consuming app.
+Cat Boardは、SwiftUIの画面とKotlin Multiplatformのアプリケーションロジックで構成する、iOS向けの猫画像ギャラリーです。MVVM構造で、プラットフォーム固有のViewと共有のViewModel・データ層を分離しています。共有ライブラリはAndroidにも対応しており、Androidのアプリケーションと画像分類器は利用側で用意する構成です。
 
-## Architecture
+## アーキテクチャ
 
-| Module | Boundary |
+| モジュール | 責務 |
 |---|---|
-| [cat-api](modules/cat-api) | Paged requests to The Cat API, response validation, and requested-count limits |
-| [image-store](modules/image-store) | Durable FIFO URL consumption and background replenishment with Room |
-| [image-loader](modules/image-loader) | Coil loading, bounded image caches, and encoded image data |
-| [image-screener](modules/image-screener) | The screening interface and immutable settings |
-| [image-prefetcher](modules/image-prefetcher) | Durable queues of accepted images, partitioned by screening settings |
-| [app](modules/app) | Shared ViewModel state and operations, platform dependency factories, and the exported iOS framework |
+| [cat-api](modules/cat-api) | The Cat APIへのページ単位のリクエスト、レスポンス検証、取得件数の制限 |
+| [image-store](modules/image-store) | Roomで永続化する画像URLのFIFOキューとバックグラウンド補充 |
+| [image-loader](modules/image-loader) | Coilによる画像読み込み、容量を制限したキャッシュ、エンコード済み画像データの提供 |
+| [image-screener](modules/image-screener) | スクリーニングのインターフェースと不変の設定値 |
+| [image-prefetcher](modules/image-prefetcher) | スクリーニング設定ごとに分けて永続化する、採用済み画像のキュー |
+| [app](modules/app) | 共有ViewModelの状態・操作、プラットフォーム別の依存構築、iOS向けフレームワークの公開 |
 
-The [platform convention plugin](build-logic/src/main/kotlin/catboard.platforms.gradle.kts) owns the iOS and Android library targets. Application logic lives in `commonMain`; networking engines, database construction, preferences, and image encoding live in `iosMain` and `androidMain`. The iOS application consumes one static framework, and Android applications depend on `:modules:app`.
+[プラットフォーム用の規約プラグイン](build-logic/src/main/kotlin/catboard.platforms.gradle.kts)が、iOSとAndroidのライブラリターゲットを定義しています。アプリケーションロジックは`commonMain`、通信エンジン・データベース構築・設定保存・画像エンコードは`iosMain`と`androidMain`に配置しています。iOSアプリは1つの静的フレームワークを利用し、Androidアプリは`:modules:app`に依存します。
 
-The [Swift application](ios/CatBoardApp) groups screens under `View`, state bindings under `ViewModel`, dependency construction and scene ownership under `Composition`, and Core ML integration under `Screening`. `GalleryBinding` observes the shared `GallerySession` and forwards actions without duplicating loading logic. The application owns a `GalleryRuntime` with the shared caches and repositories. Each scene owns a separate session and ViewModel; releasing its binding cancels only that session. Closing the application runtime cancels all remaining work before shared resources close. The session also supplies image data from the shared cache.
+[Swiftアプリ](ios/CatBoardApp)は、画面を`View`、状態のバインディングを`ViewModel`、依存構築とシーンの管理を`Composition`、Core MLとの連携を`Screening`に分けています。`GalleryBinding`は共有の`GallerySession`を監視して操作を伝え、読み込みロジックを重複して持ちません。アプリケーションは、共有キャッシュとリポジトリを持つ`GalleryRuntime`を所有します。各シーンは独立したセッションとViewModelを持ち、バインディングの解放時にはそのセッションだけをキャンセルします。ランタイムの終了時には、残っている処理をすべてキャンセルしてから共有リソースを閉じます。画像データもセッションを通じて共有キャッシュから取得します。
 
-The SwiftUI gallery owns its tiered layout, native navigation bar, icon animations, and settings sheet. Android consumers render their own views from the same `GalleryViewModel` state. A platform classifier implements the shared `Screener` contract and is required by the Android factory.
+SwiftUIのギャラリーが、段組みレイアウト、ネイティブのナビゲーションバー、アイコンのアニメーション、設定シートを担当します。Androidでは、同じ`GalleryViewModel`の状態から利用側のViewを描画します。画像分類器は共有の`Screener`インターフェースを実装するプラットフォーム固有の処理で、Androidの依存構築時には指定が必須です。
 
-The gallery loads progressively, fetches more images at the older end of the list, and starts a new gallery at the display limit. Its tiered layout uses lazy groups of square images. Settings changes cancel pending work and discard prefetched images from the previous policy.
+ギャラリーは画像を段階的に読み込み、一覧の古い画像側に到達すると追加取得します。表示上限に達すると新しいギャラリーに切り替わります。段組みレイアウトは、正方形の画像をグループ単位で遅延描画します。設定変更時には進行中の処理をキャンセルし、変更前の設定で先読みした画像を破棄します。
 
-Screening is disabled by default in the simulator and enabled by default on devices. Normal mode accepts safe images; scary mode accepts unsafe images. Classification failures are returned as errors and do not accept images. The implementation is [CoreMLClassifier.swift](ios/CatBoardApp/Screening/CoreMLClassifier.swift), using the package declared in [project.yml](ios/project.yml).
+スクリーニングの初期値は、シミュレーターでは無効、実機では有効です。通常モードでは安全と判定された画像、怖いモードでは安全でないと判定された画像を採用します。分類に失敗した場合はエラーを返し、その画像を採用しません。実装は[CoreMLClassifier.swift](ios/CatBoardApp/Screening/CoreMLClassifier.swift)にあり、[project.yml](ios/project.yml)で定義したパッケージを利用しています。
 
-## Toolchain and build
+## 開発環境とビルド
 
-The prerequisites are an Apple Silicon Mac, Xcode, JDK 17 or newer, Homebrew with Mint, and the Ruby selected by [ios/.ruby-version](ios/.ruby-version). Kotlin dependencies and plugins are defined in [the Gradle version catalog](gradle/libs.versions.toml); Swift tools are pinned to reviewed commits in [ios/Mintfile](ios/Mintfile).
+必要な環境は、Apple Silicon搭載のMac、Xcode、JDK 17以上、Homebrewで導入したMint、[ios/.ruby-version](ios/.ruby-version)で指定したRubyです。Kotlinの依存ライブラリとプラグインは[Gradleのバージョンカタログ](gradle/libs.versions.toml)、Swift用ツールは[ios/Mintfile](ios/Mintfile)で管理しています。Swift用ツールは、確認済みのコミットに固定しています。
 
-The [Kotlin compatibility guide](https://kotlinlang.org/docs/multiplatform/multiplatform-compatibility-guide.html) describes supported toolchain combinations. [CI](.github/workflows/ci.yml) selects an available Apple Silicon runner and a compatible Xcode version.
+ツールチェーンの対応関係は[Kotlinの互換性ガイド](https://kotlinlang.org/docs/multiplatform/multiplatform-compatibility-guide.html)に記載されています。CIでは、[iOSの準備用Action](.github/actions/setup-ios/action.yml)がApple Siliconランナー上のXcodeを選択し、[Gradleの準備用Action](.github/actions/setup-gradle/action.yml)がJDKの選択とGradleのキャッシュを管理します。
 
-Setup, framework compilation, and simulator application compilation are available from the repository root:
+リポジトリのルートで使う、環境準備・フレームワークのビルド・シミュレーター用アプリのビルドのコマンドは次のとおりです。
 
 ```sh
 make setup
@@ -37,22 +37,30 @@ make framework
 make build-ios
 ```
 
-`make setup` installs Ruby dependencies and Swift tools, then generates `ios/CatBoardApp.xcodeproj`. Xcode builds invoke Gradle to build and embed the Kotlin framework. The generated project is available for development in Xcode.
+`make setup`はRubyの依存ライブラリとSwift用ツールを導入し、`ios/CatBoardApp.xcodeproj`を生成します。Xcodeでのビルド時にはGradleが呼び出され、Kotlinのフレームワークをビルドしてアプリに組み込みます。生成したプロジェクトでXcode上の開発ができます。
 
-The shared Android library builds with `make build-android`. Android builds require an SDK configured through `ANDROID_HOME` or `local.properties`; SDK levels are defined in the version catalog.
+Android向け共有ライブラリは`make build-android`でビルドできます。Android SDKの場所は`ANDROID_HOME`または`local.properties`で指定し、SDKのレベルはバージョンカタログで管理しています。
 
-The unsigned archive target is `make build-release`. Its output is `ios/fastlane/build/release/archive/CatBoardApp.xcarchive`. Signing lanes use `APPLE_ID` and `TEAM_ID` from the environment.
+署名なしアーカイブは`make build-release`で生成でき、出力先は`ios/fastlane/build/release/archive/CatBoardApp.xcarchive`です。署名用のFastlaneレーンは、環境変数の`APPLE_ID`と`TEAM_ID`を利用します。
 
-## Verification
+## 検証
 
 ```sh
 make test
 ```
 
-This runs Kotlin simulator tests, Swift screening-boundary tests, and XCTest UI tests. The simulator selector reads the installed inventory and chooses an iPhone matching the active Xcode SDK. `LOCAL_SIMULATOR_UDID` selects a specific simulator when provided.
+`make test`は、Kotlinのシミュレーターテスト、Swiftのスクリーニング境界のテスト、XCTestのUIテストを実行します。シミュレーターの選択処理は、インストール済みの一覧から、使用中のXcode SDKとメジャー・マイナーバージョンが一致する最新パッチのランタイムを選び、そのランタイムのiPhoneを使用します。`LOCAL_SIMULATOR_UDID`で特定のシミュレーターを指定することもできます。
 
-The narrower iOS targets are `make test-kotlin`, `make unit-test`, and `make ui-test`. Shared Kotlin tests also run on the Android host with `make test-android`. `make fix` formats and autocorrects Swift; `make check` applies those fixes before format and lint validation.
+対象を絞ったiOSの検証には、`make test-kotlin`、`make unit-test`、`make ui-test`があります。`make test-android`では、Androidのホスト環境で共有Kotlinのテストを実行します。`make fix`はSwiftの整形と自動修正を行い、`make check`はその修正を適用してから整形・Lintを検証します。
 
-The UI tests use explicit launch arguments for deterministic local image data and simulated errors. Their contracts cover initial display, refresh, retry, loading beyond the initial batch, and settings changes. SwiftUI views expose native accessibility identifiers. The UI tests retain gallery and settings screenshots for visual inspection.
+UIテストは、起動引数で固定のローカル画像や模擬エラーを指定し、初期表示・更新・再試行・初回取得分を超える追加読み込み・設定変更を検証します。SwiftUIのViewにはネイティブのアクセシビリティ識別子を設定しています。画面の確認用に、ギャラリーと設定画面のスクリーンショットも保存します。
 
-Automated validation uses simulators. Physical-device screening and scroll-performance measurements are outside this migration's verification scope.
+自動検証にはシミュレーターを使用します。実機でのスクリーニングとスクロール性能の測定は、今回の移行における検証範囲に含まれません。
+
+## CI
+
+[CI](.github/workflows/ci.yml)は、`main`向けのPull Request、`main`へのpush、手動実行で起動します。コード品質、共有Kotlinの検証、iOSアプリのテスト、署名なしReleaseアーカイブを、それぞれ独立したworkflowとして並列実行します。AndroidのホストテストとライブラリビルドはLinux、Kotlin Native・Swift・UIのテストとReleaseアーカイブの生成はApple SiliconのmacOSで実行します。
+
+共通の準備用Actionがツールチェーンの選択とキャッシュを管理し、Makeターゲットがビルドとテストのコマンドを定義しています。コード品質の検証では、整形によってSwiftソースに差分が生じた場合は失敗とし、`actionlint`でworkflowの構文も確認します。`actionlint`を導入した環境では、`make check-workflows`でローカルでもworkflowを検証できます。
+
+KotlinとXCTestの結果は別々の成果物として保存し、テスト失敗時にも取得できた結果を保存します。署名なしアーカイブは、権限とシンボリックリンクを保持するため、圧縮したtarファイルで保存します。成果物の保存期間は3日間です。アーカイブの生成には署名用のSecretsを使用しません。

@@ -1,0 +1,24 @@
+name: Code quality
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Swift and workflows
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-ios
+      - name: Install workflow validator
+        run: brew install actionlint
+      - name: Format and lint Swift
+        run: make check
+      - name: Verify committed formatting
+        run: git diff --exit-code -- ios/CatBoardApp ios/CatBoardTests ios/CatBoardUITests
+      - name: Validate workflows
+        run: make check-workflows
