@@ -1,0 +1,24 @@
+name: Set up iOS tools
+description: Select Xcode and install the cached tools from the iOS Mintfile.
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode
+      uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+      with:
+        xcode-version: '26.4.1'
+    - name: Configure Mint directory
+      shell: bash
+      run: echo "MINT_PATH=$GITHUB_WORKSPACE/.mint" >> "$GITHUB_ENV"
+    - name: Cache Mint packages
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ${{ github.workspace }}/.mint
+        key: ${{ runner.os }}-${{ runner.arch }}-mint-${{ hashFiles('ios/Mintfile', '.github/actions/setup-ios/action.yml') }}
+    - name: Install Mint
+      shell: bash
+      run: brew install mint
+    - name: Install iOS tools
+      shell: bash
+      run: make setup-tools
